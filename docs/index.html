@@ -1,142 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>SimDef Live</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SimDef – Real-Time Threat Visualizer</title>
   <style>
-    canvas {
-      border: 1px solid #ccc;
-      background: #f9f9f9;
-      display: block;
-      margin-bottom: 1em;
-    }
     body {
-      font-family: sans-serif;
-      padding: 20px;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f4f8;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
     }
-    #logg {
-      max-height: 300px;
-      overflow-y: auto;
-      border: 1px solid #ddd;
-      padding: 10px;
-      background: #fff;
+    h1 {
+      font-size: 2.5rem;
+      color: #1a237e;
     }
-    #logg div {
-      margin-bottom: 5px;
+    p {
+      max-width: 600px;
+      margin: 1rem auto;
+      font-size: 1.1rem;
+    }
+    .button {
+      display: inline-block;
+      margin-top: 2rem;
+      padding: 12px 24px;
+      background: #1a237e;
+      color: #fff;
+      text-decoration: none;
+      font-size: 1rem;
+      border-radius: 8px;
+      transition: background 0.3s;
+    }
+    .button:hover {
+      background: #303f9f;
+    }
+    footer {
+      position: absolute;
+      bottom: 10px;
+      font-size: 0.9rem;
+      color: #888;
     }
   </style>
 </head>
 <body>
-  <h2>🛰️ SimDef – Sanntidstrusselvisning</h2>
-  <p>Kobler til <code>ws://localhost:9002</code> og viser objekter med vurdering og retning mot base.</p>
-  <canvas id="map" width="600" height="600"></canvas>
-  <h3>🛑 Trussellogg</h3>
-  <div id="logg"></div>
+  <h1>SimDef</h1>
+  <p>
+    Sanntidssystem for deteksjon og visualisering av potensielle trusler.
+    Simulerte objekter beveger seg i sanntid, vurderes for risiko, og vises i et interaktivt grensesnitt.
+  </p>
 
-  <script>
-    const canvas = document.getElementById("map");
-    const ctx = canvas.getContext("2d");
-    const logg = document.getElementById("logg");
-    let objekter = [];
-    let visteTrusler = new Set();
+  <a class="button" href="../frontend/simdef-client.htm">🔍 Start Demo</a>
 
-    const CENTER_X = canvas.width / 2;
-    const CENTER_Y = canvas.height / 2;
-    const SCALE = 3;
-
-    function avstandTilBase(obj) {
-      return Math.sqrt(obj.x * obj.x + obj.y * obj.y);
-    }
-
-    function retningMotBase(obj) {
-      const dx = -obj.x;
-      const dy = -obj.y;
-      let vinkel = Math.atan2(dy, dx) * 180 / Math.PI;
-      if (vinkel < 0) vinkel += 360;
-      return vinkel;
-    }
-
-    function tegn() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // ✅ Tegn basen
-      ctx.beginPath();
-      ctx.arc(CENTER_X, CENTER_Y, 6, 0, Math.PI * 2);
-      ctx.fillStyle = "black";
-      ctx.fill();
-      ctx.fillText("BASE", CENTER_X + 8, CENTER_Y - 8);
-
-      for (const obj of objekter) {
-        const x = CENTER_X + obj.x * SCALE;
-        const y = CENTER_Y + obj.y * SCALE;
-
-        // Farge
-        let farge = "blue";
-        if (obj.status === "mistenkelig") farge = "orange";
-        if (obj.status === "trussel") farge = "red";
-
-        // 🟢 Objekt
-        ctx.beginPath();
-        ctx.arc(x, y, 7, 0, Math.PI * 2);
-        ctx.fillStyle = farge;
-        ctx.fill();
-        ctx.strokeStyle = "black";
-        ctx.stroke();
-
-        // 🧭 Retningspil
-        const retningRad = (obj.retning * Math.PI) / 180;
-        const pilLengde = 12;
-        const dx = Math.cos(retningRad) * pilLengde;
-        const dy = Math.sin(retningRad) * pilLengde;
-
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x + dx, y + dy);
-        ctx.strokeStyle = "gray";
-        ctx.stroke();
-
-        // 📏 Info-tekst
-        ctx.fillStyle = "black";
-        ctx.font = "12px sans-serif";
-        ctx.fillText(`ID ${obj.id}`, x + 10, y);
-        ctx.fillText(`↘ ${avstandTilBase(obj).toFixed(0)}m`, x + 10, y + 14);
-        ctx.fillText(`🧭 ${retningMotBase(obj).toFixed(0)}°`, x + 10, y + 28);
-      }
-    }
-
-    function loggTrusler() {
-      for (const obj of objekter) {
-        const erTrussel = obj.status === "mistenkelig" || obj.status === "trussel";
-        const nøkkel = `id${obj.id}-${obj.status}`;
-
-        if (erTrussel && !visteTrusler.has(nøkkel)) {
-          visteTrusler.add(nøkkel);
-          const el = document.createElement("div");
-          el.innerText = `🚨 ID ${obj.id} – ${obj.status.toUpperCase()} – ${obj.hastighet.toFixed(2)} m/s`;
-          logg.prepend(el);
-        }
-      }
-    }
-
-    const socket = new WebSocket("ws://localhost:9002");
-
-    socket.onopen = () => {
-      console.log("✅ Tilkoblet WebSocket-server");
-    };
-
-    socket.onmessage = (event) => {
-      try {
-        objekter = JSON.parse(event.data);
-        tegn();
-        loggTrusler();
-      } catch (e) {
-        console.error("❌ JSON-feil:", e);
-      }
-    };
-
-    socket.onclose = () => {
-      console.warn("🔌 Tilkoblingen ble brutt");
-    };
-  </script>
+  <footer>
+    &copy; 2025 Magnusns | SimDef Project
+  </footer>
 </body>
 </html>
